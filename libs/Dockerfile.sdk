@@ -1,0 +1,37 @@
+FROM debian:trixie-slim
+
+ARG DEBIAN_FRONTEND=noninteractive
+ENV VCPKG_FORCE_SYSTEM_BINARIES=1
+ARG USER_ID
+ENV USER_ID=${USER_ID:-1000}
+ARG GROUP_ID
+ENV GROUP_ID=${GROUP_ID:-1000}
+ARG USER_NAME
+ENV USER_NAME=user
+ARG USER_DIR
+ENV USER_DIR=/home/user
+ARG RUSTDESK_SERVER_DIR
+ENV RUSTDESK_SERVER_DIR=/home/user/rustdesk-server
+
+
+RUN apt update -y && \
+    apt install --yes --no-install-recommends sudo curl ca-certificates g++ gcc librust-libsodium-sys-dev
+
+
+RUN groupadd --gid ${GROUP_ID} ${USER_NAME} && \
+    useradd --uid ${USER_ID} --gid ${GROUP_ID} --shell /usr/bin/bash --create-home ${USER_NAME} && \
+    mkdir -p ${USER_DIR} && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/user
+
+COPY ./entrypoint.sh ${USER_DIR}/.local/bin/entrypoint.sh
+RUN chown -R ${USER_NAME}:${USER_NAME} ${USER_DIR}
+
+WORKDIR ${USER_DIR}
+USER ${USER_NAME}
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+    chmod +x rustup.sh && ./rustup.sh -y
+
+ENV PATH=${PATH}:${USER_DIR}/.local/bin
+
+ENTRYPOINT ["entrypoint.sh"]
