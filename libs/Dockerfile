@@ -1,6 +1,6 @@
 FROM debian:trixie-slim
 
-ENV PATH=${PATH}:/src
+# ENV PATH=${PATH}:/src
 
 RUN mkdir -p /rustdesk-server
 COPY hbbr /usr/local/bin
