@@ -1,0 +1,375 @@
+#!/bin/bash
+
+cd $(dirname $(readlink -f $0))
+
+ENV=.env
+LIBS_DIR=libs
+COLORS=colors
+APPS_NAME=rustdesk-server-builder
+DOCKER_COMPOSE=docker-compose.yml
+
+RUSTDESK_SERVER_SRC=rustdesk-server
+RUSTDESK_SERVER=server
+RUSTDESK_SERVER_HBBR=hbbr
+RUSTDESK_SERVER_HBBS=hbbs
+RUSTDESK_SERVER_UTILS=rustdesk-utils
+RUSTDESK_SERVER_KEY_FILE=id_ed25519
+
+DOCKERFILE=Dockerfile
+DOCKERFILE_SDK=Dockerfile.sdk
+
+VOLUME_GIT_CACHE=rustdesk-server-git-cache
+VOLUME_REGISTRY_CACHE=rustdesk-server-registry-cache
+
+if [[ -z $PWD_APP ]]; then
+    export PWD_APP=$(pwd)
+fi
+
+case ":${PATH}:" in
+    *:"$HOME/.cargo/bin":*)
+        ;;
+    *)
+        export PATH="$HOME/.cargo/bin:$PATH"
+        ;;
+esac
+
+if [[ -d ${LIBS_DIR} ]] && [[ -f "${LIBS_DIR}/${COLORS}" ]] ; then
+    . ${LIBS_DIR}/${COLORS}
+fi
+
+apps_name=$(echo "$APPS_NAME" | tr '[:upper:]' '[:lower:]')
+
+if [ -f $PWD_APP/$ENV ]; then
+    . ${ENV}
+else
+    printf "\033[0m\033[31m\n"
+    echo "== The $apps_name application does not have a file with the application settings =="
+    printf "\n\033[0m"
+    exit 1
+fi
+
+help() {
+    # Help меню
+    _cmd=$0
+    cmd="${_cmd/.\//}"
+    printf "$IPurple"
+    echo "######################################## HELP ########################################"
+    printf "$IBlue\n"
+    echo " $cmd --install                      | Установка исходного кода приложения"
+    printf ${Red}
+    echo " $cmd --remove                       | Удаленией"
+    echo " $cmd          --src                 |           исходного кода приложения"
+    echo " $cmd          --builder             |           приложения для сборки rustdesk-server"
+    echo " $cmd          --apps                |           сборки rustdesk-server"
+    echo " $cmd          --img                 |           образа rustdesk-server"
+    printf ${Green}
+    echo " $cmd --server                       | Сервер"
+    echo " $cmd          --start               |        старт"
+    echo " $cmd          --stop                |        стоп"
+    printf ${Purple}
+    echo " $cmd --build                        | Cборка rustdesk-server"
+    echo " $cmd         --sdk                  | Cборка sdk для rustdesk-server"
+    echo " $cmd --deploy                       | Запись в Registry"
+    echo " $cmd          --server              |                   образа rustdesk-server"
+    echo " $cmd          --builder             |                   образа sdk rustdesk-server"
+    printf ${Cyan}
+    echo " $cmd --help                         | Справка по работе приложения"
+    printf "$IPurple\n"
+    echo "######################################################################################"
+    printf "$Color_Off\n"
+}
+
+
+install() {
+    # Установка
+    shift
+
+    array=$(echo $(echo "$*" | sed 's/-//g') | tr '[:upper:]' '[:lower:]')
+    array=$(echo ${array} | tr ' ' '\n' | sort)
+
+    if [[ "${array[@]}" =~ 'help' ]]; then help ; fi
+
+    # Установка исходников rustdesk-server
+    printf "$IGreen\n"
+    if [[ ! -d ${PWD_APP}/${RUSTDESK_SERVER_SRC} ]] ; then
+        echo "mkdir => rustdesk-server"
+        mkdir ${PWD_APP}/${RUSTDESK_SERVER_SRC}
+    fi
+
+    if [[ $(ls ${PWD_APP}/${RUSTDESK_SERVER_SRC} | wc -l) -eq 0 ]]; then
+        echo "git clone => rustdesk-server"
+        git clone --depth=1 --recurse-submodules ${RUSTDESK_SERVER_GIT} ${RUSTDESK_SERVER_SRC}
+        # git clone --branch ${RUSTDESK_GIT_BRANCH} --depth=1 ${RUSTDESK_GIT} ${RUSTDESK_DIR}
+    else
+        printf "$IYellow\n"
+        echo "rustdesk-server => src dir exists"
+    fi
+    printf "\n$Color_Off"
+
+}
+
+remove() {
+    # Удаление приложения и исходного кода
+
+    shift
+    array=$(echo $(echo $(echo "$*" | sed 's/-//g') | tr '[:upper:]' '[:lower:]') | tr ' ' '\n' | sort)
+
+    if [[ "${array[@]}" =~ 'help' ]]; then help ; fi
+
+    if [[ ! -z $* ]] ; then
+
+        for command in ${array}
+        do
+            case ${command} in
+
+                "builder")
+                        printf "\n$BRed"
+                        docker rmi ${RUSTDESK_SERVER_BUILDER_TAG}
+                        printf "\n$Color_Off"
+                    ;;
+
+                "apps")
+                        printf "\n$BRed"
+                        if [ -d ${PWD_APP}/${RUSTDESK_SERVER} ] ; then
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBR}"
+                            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBR}
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBS}"
+                            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBS}
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_UTILS}"
+                            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_UTILS}
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_KEY_FILE}"
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_KEY_FILE}.pub"
+                            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_KEY_FILE}*
+                        fi
+                    ;;
+
+                "src")
+                        printf "\n$BRed"
+                        if [ -d ${PWD_APP}/${RUSTDESK_SERVER_SRC} ] ; then
+                            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER_SRC}\n"
+                            rm -fr ${PWD_APP}/${RUSTDESK_SERVER_SRC}
+                        fi
+                        printf "\n$Color_Off"
+                    ;;
+
+                "img")  
+
+                        printf "\n$BRed"
+                        docker rmi ${REGISTRY_RUSTDESK_SERVER_TAG}
+                        printf "\n$Color_Off"
+                    ;;
+
+            esac
+        done
+
+    else
+
+        printf "\n$BRed"
+
+        if [ -d ${PWD_APP}/${RUSTDESK_SERVER} ] ; then
+            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBR}"
+            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBR}
+            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBS}"
+            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_HBBS}
+            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_UTILS}"
+            rm -fr ${PWD_APP}/${RUSTDESK_SERVER}/${RUSTDESK_SERVER_UTILS}
+        fi
+
+        if [ -d ${PWD_APP}/${RUSTDESK_SERVER_SRC} ] ; then
+            printf "\n rempve => ${PWD_APP}/${RUSTDESK_SERVER_SRC}"
+            rm -fr ${PWD_APP}/${RUSTDESK_SERVER_SRC}
+        fi
+
+        docker rmi ${RUSTDESK_SERVER_BUILDER_TAG}
+        docker rmi ${REGISTRY_RUSTDESK_SERVER_TAG}
+
+        printf "\n$Color_Off"
+
+    fi
+
+}
+
+is-src() {
+
+    if [[ ! -d ${PWD_APP}/${RUSTDESK_SERVER_SRC} ]] ; then
+        printf "\n$BRed"
+        echo "Нет исходного кода RUSTDESK_SERVER"
+        printf "\n$Color_Off"
+        exit 1
+    fi
+
+}
+
+
+server() {
+    # Локальный старт приложения
+
+    shift
+    command=$(echo $(echo "$*" | sed 's/-//g') | tr '[:upper:]' '[:lower:]')
+    command=$(echo ${command} | tr ' ' '\n' | sort)
+
+    if [[ "${command[@]}" =~ 'help' ]] ; then help ; fi
+
+    if [ -d ${PWD_APP}/${RUSTDESK_SERVER} ] && \
+       [ -f ${PWD_APP}/${LIBS_DIR}/${DOCKER_COMPOSE} ]; then
+
+       cd ${PWD_APP}/${RUSTDESK_SERVER}
+
+       case ${command} in
+
+        "start")
+                printf "\n$BBlue"
+                docker compose --file ${PWD_APP}/${LIBS_DIR}/${DOCKER_COMPOSE} up -d
+                printf "\n$Color_Off"
+            ;;
+
+        "stop")
+                printf "\n$BYellow"
+                docker compose --file ${PWD_APP}/${LIBS_DIR}/${DOCKER_COMPOSE} down
+                printf "\n$Color_Off"
+            ;;
+
+        esac
+        
+    fi
+
+}
+
+
+build-sdk() {
+    # Сборка sdk
+    pushd ${PWD_APP}/${LIBS_DIR}
+
+    echo "build => ${RUSTDESK_SERVER_BUILDER_TAG}"
+
+    docker build --no-cache --file ${DOCKERFILE_SDK} --tag ${RUSTDESK_SERVER_BUILDER_TAG} .
+
+    popd
+
+    exit 0
+}
+
+
+build() {
+    # Сборка приложения
+
+    shift
+
+    command=$(echo $(echo "$*" | sed 's/-//g') | tr '[:upper:]' '[:lower:]')
+    command=$(echo ${command} | tr ' ' '\n' | sort)
+    if [[ "${command[@]}" =~ 'help' ]]; then help ; fi # Если вызван --help
+
+    if [[ "${command[@]}" =~ 'sdk' ]]; then build-sdk ; fi # Если вызван --sdk
+
+    is-src
+
+    pushd ${PWD_APP}
+
+    if [ -d ${RUSTDESK_SERVER} ] ; then
+        echo "clean => ${RUSTDESK_SERVER}"
+        rm -fr ${RUSTDESK_SERVER}/*
+    else
+        echo "create => ${RUSTDESK_SERVER}"
+        mkdir -p ${RUSTDESK_SERVER}
+    fi
+
+    pushd ${PWD_APP}/${RUSTDESK_SERVER_SRC}
+
+    docker run --rm -it -v $PWD:/home/user/rustdesk-server \
+        --volume ${VOLUME_GIT_CACHE}:/home/user/.cargo/git \
+        --volume ${VOLUME_REGISTRY_CACHE}:/home/user/.cargo/registry \
+        --user $(id -u):$(id -g) ${RUSTDESK_SERVER_BUILDER_TAG}
+
+    if [[ $? -ne 0 ]] ; then
+        printf "\n$Color_Off"
+        exit 1
+    fi
+
+    cp -a target/release/${RUSTDESK_SERVER_HBBR} ../${RUSTDESK_SERVER}
+    cp -a target/release/${RUSTDESK_SERVER_HBBS} ../${RUSTDESK_SERVER}
+    cp -a target/release/${RUSTDESK_SERVER_UTILS} ../${RUSTDESK_SERVER}
+
+    popd
+
+    printf "\n$BGreen"
+
+    pushd ${RUSTDESK_SERVER}
+
+    :> ${RUSTDESK_SERVER_KEY_FILE} && :> ${RUSTDESK_SERVER_KEY_FILE}.pub
+    echo ${KEY_PRIV} > ${RUSTDESK_SERVER_KEY_FILE}
+    echo ${KEY_PUB} > ${RUSTDESK_SERVER_KEY_FILE}.pub
+
+    docker build --file ${PWD_APP}/${LIBS_DIR}/${DOCKERFILE} --tag ${REGISTRY_RUSTDESK_SERVER_TAG} .
+
+    if [[ $? -ne 0 ]] ; then
+        printf "\n$Color_Off"
+        exit 1
+    fi
+
+    rm -fr ${RUSTDESK_SERVER_KEY_FILE}*
+
+    popd
+
+}
+
+deploy() {
+
+    local command=$(echo $(echo "$*" | sed 's/-//g') | tr '[:upper:]' '[:lower:]')
+    local command=$(echo ${command} | tr ' ' '\n' | sort)
+    if [[ "${command[@]}" =~ 'help' ]]; then help ; fi # Если вызван --help
+
+    if [[ "${command[@]}" =~ 'server' ]]; then local TAG=${REGISTRY_RUSTDESK_SERVER_TAG} ; fi # Если вызван --server
+    if [[ "${command[@]}" =~ 'builder' ]]; then local TAG=${RUSTDESK_SERVER_BUILDER_TAG} ; fi # Если вызван --builder
+
+	printf "\033[0m"
+    printf "\n$IBlue"
+
+	echo "####### DEPLOY IMAGE ${TAG} ########"
+    printf "\n$ICyan"
+
+	docker login -u ${REGISTRY_USER} -p ${REGISTRY_PASSWORD} ${REGISTRY_HOST} && \
+	docker tag ${TAG} ${REGISTRY_HOST}/${TAG} && \
+	docker push ${REGISTRY_HOST}/${TAG} && \
+	docker rmi ${REGISTRY_HOST}/${TAG} && \
+	docker logout
+
+    printf "\n$IYellow"
+
+    if [[ "${command[@]}" =~ 'clean' ]] ; then
+        echo "### CLEAN LOCAL IMAGE ${TAG} OK! ####"
+        printf "\033[32m\n"
+        docker rmi ${TAG}
+
+    fi
+
+	printf "\n$IBlue"
+	echo "###### DEPLOY IMAGE ${TAG} OK! ######"
+	printf "\n$Color_Off"
+
+}
+
+
+_cmd=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+case $_cmd in
+    "--install" | "install" | "-i" )
+          install $* # Установка приложения
+          ;;
+    "--server" | "server" | "-s" )
+          server $* # Старт приложения
+          ;;
+    "--remove" | "remove" | "-r" )
+          remove $* # Удаление приложения
+          ;;
+    "--build" | "build" | "-b" )
+          build $* # Сборка приложения
+          ;;
+    "--deploy" | "deploy" | "-d" )
+          deploy $* # Запись образа kabserver в Registry"
+          ;;
+    "--help" | "help" | "-h" )
+          help
+          ;;
+    *)
+        help
+        ;;
+esac
