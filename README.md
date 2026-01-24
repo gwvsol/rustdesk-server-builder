@@ -30,3 +30,18 @@
 [RustDesk - клиент](github.com/rustdesk/rustdesk/releases)      
 
 [RustDesk - сервер](https://github.com/rustdesk/rustdesk-server)
+
+SDK хранит кэш в ```volume```
+
+```bash
+docker volume ls
+DRIVER    VOLUME NAME
+local     rustdesk-server-git-cache
+local     rustdesk-server-registry-cache
+```
+
+Для удаления/очистки кэш => ```docker volume rm rustdesk-server-git-cache rustdesk-server-registry-cache```
+
+В некоторых случах требуется удаления кэш для ```Docker``` => ```docker system prune -f```
+
+
