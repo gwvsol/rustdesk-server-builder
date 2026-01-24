@@ -67,7 +67,8 @@ help() {
     echo " $cmd          --start               |        старт"
     echo " $cmd          --stop                |        стоп"
     printf ${Purple}
-    echo " $cmd --build                        | Cборка rustdesk-server"
+    echo " $cmd --build                        | Cборка приложения rustdesk-server"
+    echo " $cmd         --server               | Cборка rustdesk-server в образе Docker"
     echo " $cmd         --sdk                  | Cборка sdk для rustdesk-server"
     echo " $cmd --deploy                       | Запись в Registry"
     echo " $cmd          --server              |                   образа rustdesk-server"
@@ -291,24 +292,32 @@ build() {
 
     popd
 
-    printf "\n$BGreen"
+    if [[ "${command[@]}" =~ 'server' ]]; then
 
-    pushd ${RUSTDESK_SERVER}
+        printf "\n$BGreen"
 
-    :> ${RUSTDESK_SERVER_KEY_FILE} && :> ${RUSTDESK_SERVER_KEY_FILE}.pub
-    echo ${KEY_PRIV} > ${RUSTDESK_SERVER_KEY_FILE}
-    echo ${KEY_PUB} > ${RUSTDESK_SERVER_KEY_FILE}.pub
+        pushd ${RUSTDESK_SERVER}
 
-    docker build --file ${PWD_APP}/${LIBS_DIR}/${DOCKERFILE} --tag ${REGISTRY_RUSTDESK_SERVER_TAG} .
+        :> ${RUSTDESK_SERVER_KEY_FILE} && :> ${RUSTDESK_SERVER_KEY_FILE}.pub
+        echo ${KEY_PRIV} > ${RUSTDESK_SERVER_KEY_FILE}
+        echo ${KEY_PUB} > ${RUSTDESK_SERVER_KEY_FILE}.pub
 
-    if [[ $? -ne 0 ]] ; then
+        docker build \
+            --file ${PWD_APP}/${LIBS_DIR}/${DOCKERFILE} \
+            --tag ${REGISTRY_RUSTDESK_SERVER_TAG} .
+
+        if [[ $? -ne 0 ]] ; then
+            printf "\n$Color_Off"
+            exit 1
+        fi
+
+        rm -fr ${RUSTDESK_SERVER_KEY_FILE}*
+
+        popd
+
         printf "\n$Color_Off"
-        exit 1
-    fi
 
-    rm -fr ${RUSTDESK_SERVER_KEY_FILE}*
-
-    popd
+    fi # Если вызван --server (сборка образа Docker)
 
 }
 
@@ -364,7 +373,7 @@ case $_cmd in
           build $* # Сборка приложения
           ;;
     "--deploy" | "deploy" | "-d" )
-          deploy $* # Запись образа kabserver в Registry"
+          deploy $* # Запись образа в Registry"
           ;;
     "--help" | "help" | "-h" )
           help
