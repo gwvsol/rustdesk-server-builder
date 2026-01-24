@@ -2,3 +2,4 @@ rustdesk-server
 server
 *.tar
 *.tar.gz
+db_v2.sqlite3
