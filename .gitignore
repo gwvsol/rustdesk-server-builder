@@ -3,3 +3,4 @@ server
 *.tar
 *.tar.gz
 db_v2.sqlite3
+.env-original
