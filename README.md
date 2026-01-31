@@ -1,4 +1,4 @@
-#### RUSTDESK-SERVER     
+#### RUSTDESK-SERVER-BUILDER     
 
 Сборка ```RUSTDESK-SERVER``` в Docker    
 
