@@ -3,6 +3,7 @@
 cd $(dirname $(readlink -f $0))
 
 ENV=.env
+ENV_ORIGINAL=.env-original
 LIBS_DIR=libs
 COLORS=colors
 APPS_NAME=rustdesk-server-builder
@@ -40,6 +41,9 @@ fi
 apps_name=$(echo "$APPS_NAME" | tr '[:upper:]' '[:lower:]')
 
 if [ -f $PWD_APP/$ENV ]; then
+    if [ -f $PWD_APP/$ENV_ORIGINAL ]
+        ENV=$ENV_ORIGINAL
+    fi
     . ${ENV}
 else
     printf "\033[0m\033[31m\n"
