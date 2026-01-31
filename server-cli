@@ -41,7 +41,7 @@ fi
 apps_name=$(echo "$APPS_NAME" | tr '[:upper:]' '[:lower:]')
 
 if [ -f $PWD_APP/$ENV ]; then
-    if [ -f $PWD_APP/$ENV_ORIGINAL ]
+    if [ -f $PWD_APP/$ENV_ORIGINAL ] ; then
         ENV=$ENV_ORIGINAL
     fi
     . ${ENV}
@@ -74,9 +74,9 @@ help() {
     echo " $cmd --build                        | Cборка приложения rustdesk-server"
     echo " $cmd         --server               | Cборка rustdesk-server в образе Docker"
     echo " $cmd         --sdk                  | Cборка sdk для rustdesk-server"
-    echo " $cmd --deploy                       | Запись в Registry"
-    echo " $cmd          --server              |                   образа rustdesk-server"
-    echo " $cmd          --builder             |                   образа sdk rustdesk-server"
+    # echo " $cmd --deploy                       | Запись в Registry"
+    # echo " $cmd          --server              |                   образа rustdesk-server"
+    # echo " $cmd          --builder             |                   образа sdk rustdesk-server"
     printf ${Cyan}
     echo " $cmd --help                         | Справка по работе приложения"
     printf "$IPurple\n"
